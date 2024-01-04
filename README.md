@@ -33,3 +33,9 @@ func main() {
 }
 
 ```
+
+## Example
+
+Here's an example of a Voronoi diagram used to generate a texture with points generated from this library: 
+
+![img.png](example.png)
