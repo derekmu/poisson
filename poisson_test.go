@@ -5,19 +5,7 @@ import (
 	"testing"
 )
 
-func TestSample2D(t *testing.T) {
-	d := 10.0
-	k := 10
-	b := &Bounds{
-		MinX: -50,
-		MinY: -50,
-		MaxX: 25,
-		MaxY: 75,
-	}
-	s := rand.NewSource(943050168) // credit to https://www.random.org/
-
-	points := Sample2D(d, k, b, s)
-
+func check(t *testing.T, points []Point2D, b *Bounds, d float64) {
 	if len(points) == 0 {
 		t.Fatalf("No points generated")
 	}
@@ -37,4 +25,36 @@ func TestSample2D(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSample2D(t *testing.T) {
+	d := 10.0
+	k := 10
+	b := &Bounds{
+		MinX: -50,
+		MinY: -50,
+		MaxX: 25,
+		MaxY: 75,
+	}
+	s := rand.NewSource(943050168) // credit to https://www.random.org/
+
+	points := Sample2D(d, k, b, s)
+
+	check(t, points, b, d)
+}
+
+func TestSample2DSmall(t *testing.T) {
+	d := 0.01
+	k := 10
+	b := &Bounds{
+		MinX: -0.05,
+		MinY: -0.05,
+		MaxX: 0.025,
+		MaxY: 0.075,
+	}
+	s := rand.NewSource(104251739) // credit to https://www.random.org/
+
+	points := Sample2D(d, k, b, s)
+
+	check(t, points, b, d)
 }

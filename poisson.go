@@ -35,10 +35,10 @@ func (p *Point2D) dist(p1 *Point2D) float64 {
 // The algorithm will use the given random source for repeatability.
 func Sample2D(d float64, k int, b *Bounds, s rand.Source) []Point2D {
 	r := rand.New(s)
-	cellSize := math.Floor(d / math.Sqrt(2))
+	cellSize := d / math.Sqrt(2)
 	cellsWidth := int(math.Ceil(b.Dx()/cellSize) + 1)
 	cellsHeight := int(math.Ceil(b.Dy()/cellSize) + 1)
-	points := make([]Point2D, 0, cellsWidth*cellsHeight)
+	points := make([]Point2D, 0, cellsWidth*cellsHeight/3)
 	active := make([]Point2D, 0, int(math.Sqrt(float64(cellsWidth*cellsHeight))*4))
 	grid := make([][]*Point2D, cellsWidth)
 	for i := range grid {
