@@ -1,7 +1,7 @@
 package poisson
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 )
 
@@ -36,7 +36,7 @@ func TestSample2D(t *testing.T) {
 		MaxX: 25,
 		MaxY: 75,
 	}
-	s := rand.NewSource(943050168) // credit to https://www.random.org/
+	s := rand.NewPCG(8568094394964690136, 11528959135235502846)
 
 	points := Sample2D(d, k, b, s)
 
@@ -52,7 +52,7 @@ func TestSample2DSmall(t *testing.T) {
 		MaxX: 0.025,
 		MaxY: 0.075,
 	}
-	s := rand.NewSource(104251739) // credit to https://www.random.org/
+	s := rand.NewPCG(1086012171205092109, 14631601773360610953)
 
 	points := Sample2D(d, k, b, s)
 

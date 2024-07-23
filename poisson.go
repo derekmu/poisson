@@ -2,7 +2,7 @@ package poisson
 
 import (
 	"math"
-	"math/rand"
+	"math/rand/v2"
 )
 
 type Bounds struct {
@@ -54,7 +54,7 @@ func Sample2D(d float64, k int, b *Bounds, s rand.Source) []Point2D {
 	active = append(active, p0)
 
 	for len(active) > 0 {
-		i := r.Intn(len(active))
+		i := r.IntN(len(active))
 		p0 = active[i]
 		found := false
 		for t := 0; t < k; t++ {
