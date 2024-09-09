@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 )
 
+// Bounds is a rectangular area.
 type Bounds struct {
 	MinX float64
 	MinY float64
@@ -12,69 +13,96 @@ type Bounds struct {
 	MaxY float64
 }
 
-func (b *Bounds) Dx() float64 {
+func (b *Bounds) width() float64 {
 	return b.MaxX - b.MinX
 }
-func (b *Bounds) Dy() float64 {
+func (b *Bounds) height() float64 {
 	return b.MaxY - b.MinY
 }
 
-type Point2D struct {
+// Point is a 2D point.
+type Point struct {
 	X float64
 	Y float64
 }
 
-func (p *Point2D) dist(p1 *Point2D) float64 {
+func (p *Point) distanceTo(p1 *Point) float64 {
 	dx := p1.X - p.X
 	dy := p1.Y - p.Y
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
-// Sample2D generates points with a minimum distance d between points and within bounds b.
-// At each iteration, it will try k random points around a previous point, per Bridson's algorithm.
-// The algorithm will use the given random source for repeatability.
-func Sample2D(d float64, k int, b *Bounds, s rand.Source) []Point2D {
-	r := rand.New(s)
-	cellSize := d / math.Sqrt(2)
-	cellsWidth := int(math.Ceil(b.Dx()/cellSize) + 1)
-	cellsHeight := int(math.Ceil(b.Dy()/cellSize) + 1)
-	points := make([]Point2D, 0, cellsWidth*cellsHeight/3)
-	active := make([]Point2D, 0, int(math.Sqrt(float64(cellsWidth*cellsHeight))*4))
-	grid := make([][]*Point2D, cellsWidth)
+// Sample2D generates a set of 2D points using Poisson-disc sampling, which ensures
+// that no two points are closer than a specified minimum distance.
+//
+// Parameters:
+//   - distance: The minimum distance between any two points.
+//   - kTries: The number of attempts to generate a new point around an active point before removing the active point from consideration.
+//   - bounds: The rectangular bounds within which points should be generated.
+//   - start: An optional starting point. If nil, a random point within the bounds is used.
+//   - source: A random source for repeatability.
+//
+// Returns:
+//   - A slice of points that satisfy the Poisson-disc sampling criteria.
+func Sample2D(distance float64, kTries int, bounds Bounds, start *Point, source rand.Source) []Point {
+	rnd := rand.New(source)
+
+	// Calculate cell size and grid dimensions
+	cellSize := distance / math.Sqrt(2)
+	cellsWidth := int(math.Ceil(bounds.width()/cellSize) + 1)
+	cellsHeight := int(math.Ceil(bounds.height()/cellSize) + 1)
+
+	// Result points
+	points := make([]Point, 0, cellsWidth*cellsHeight/3)
+	// Points to consider adding another point around
+	active := make([]Point, 0, int(math.Sqrt(float64(cellsWidth*cellsHeight))*4))
+
+	// Grid to hold points to efficiently check for nearby points
+	grid := make([][]*Point, cellsWidth)
 	for i := range grid {
-		grid[i] = make([]*Point2D, cellsHeight)
+		grid[i] = make([]*Point, cellsHeight)
 	}
 
-	p0 := Point2D{
-		X: r.Float64()*b.Dx() + b.MinX,
-		Y: r.Float64()*b.Dy() + b.MinY,
+	// Initial point, either at the specified start location or randomly within bounds
+	var p0 Point
+	if start == nil {
+		p0 = Point{
+			X: rnd.Float64()*bounds.width() + bounds.MinX,
+			Y: rnd.Float64()*bounds.height() + bounds.MinY,
+		}
+	} else {
+		p0 = *start
 	}
-	insertPoint(grid, cellSize, p0, b)
-	points = append(points, p0)
-	active = append(active, p0)
+	if insertPoint(grid, p0, cellSize, distance, &bounds) {
+		points = append(points, p0)
+		active = append(active, p0)
+	}
 
 	for len(active) > 0 {
-		i := r.IntN(len(active))
-		p0 = active[i]
+		// Choose a random active point
+		ai := rnd.IntN(len(active))
+		p0 = active[ai]
+
 		found := false
-		for t := 0; t < k; t++ {
-			theta := r.Float64() * math.Pi * 2
-			radius := r.Float64()*d + d
-			p1 := Point2D{
+		for k := 0; k < kTries; k++ {
+			// Generate random points around the active point
+			theta := rnd.Float64() * math.Pi * 2
+			radius := rnd.Float64()*distance + distance
+			p1 := Point{
 				X: p0.X + radius*math.Cos(theta),
 				Y: p0.Y + radius*math.Sin(theta),
 			}
-			if !isValidPoint(grid, &p1, cellSize, d, b) {
-				continue
+			if insertPoint(grid, p1, cellSize, distance, &bounds) {
+				points = append(points, p1)
+				active = append(active, p1)
+				found = true
+				break
 			}
-			insertPoint(grid, cellSize, p1, b)
-			points = append(points, p1)
-			active = append(active, p1)
-			found = true
-			break
 		}
+
+		// If no valid point was found, remove the active point from the list
 		if !found {
-			active[i] = active[len(active)-1]
+			active[ai] = active[len(active)-1]
 			active = active[:len(active)-1]
 		}
 	}
@@ -82,12 +110,19 @@ func Sample2D(d float64, k int, b *Bounds, s rand.Source) []Point2D {
 	return points
 }
 
-func isValidPoint(grid [][]*Point2D, p *Point2D, cellSize float64, d float64, b *Bounds) bool {
-	if p.X < b.MinX || p.X >= b.MaxX || p.Y < b.MinY || p.Y >= b.MaxY {
+// insertPoint tries to insert a point into the grid while ensuring that it is within bounds and not too close to any existing points.
+//
+// Returns whether the point was inserted into the grid.
+func insertPoint(grid [][]*Point, p Point, cellSize float64, distance float64, bounds *Bounds) bool {
+	if p.X < bounds.MinX || p.X > bounds.MaxX || p.Y < bounds.MinY || p.Y > bounds.MaxY {
 		return false
 	}
-	xindex := int(math.Floor((p.X - b.MinX) / cellSize))
-	yindex := int(math.Floor((p.Y - b.MinY) / cellSize))
+
+	// Grid cell indices for the point
+	xindex := int(math.Floor((p.X - bounds.MinX) / cellSize))
+	yindex := int(math.Floor((p.Y - bounds.MinY) / cellSize))
+
+	// Check nearby cells for nearby points
 	x0 := max(xindex-2, 0)
 	x1 := min(xindex+2, len(grid)-1)
 	y0 := max(yindex-2, 0)
@@ -95,17 +130,14 @@ func isValidPoint(grid [][]*Point2D, p *Point2D, cellSize float64, d float64, b 
 	for x := x0; x <= x1; x++ {
 		for y := y0; y <= y1; y++ {
 			if grid[x][y] != nil {
-				if grid[x][y].dist(p) < d {
+				if grid[x][y].distanceTo(&p) < distance {
 					return false
 				}
 			}
 		}
 	}
-	return true
-}
 
-func insertPoint(grid [][]*Point2D, cellSize float64, p Point2D, b *Bounds) {
-	xindex := int(math.Floor((p.X - b.MinX) / cellSize))
-	yindex := int(math.Floor((p.Y - b.MinY) / cellSize))
+	// No nearby points, insert the point into the grid
 	grid[xindex][yindex] = &p
+	return true
 }
